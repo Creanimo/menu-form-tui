@@ -1,11 +1,14 @@
 from dataclasses import dataclass
 from rich import print
 from rich.panel import Panel
+from rich.prompt import Prompt
 import os
 
 def clearScreen():
   print("attempt clear")
   os.system('cls' if os.name == 'nt' else 'clear')
+  
+allowedFieldTypes = ["int", "str", "bool", "float"]
 
 @dataclass
 class MenuForm:
@@ -75,6 +78,7 @@ class MenuForm:
       self.printMenu()
     if isinstance(currentlyHovered, MenuEntryWriteObjectAttr):
       currentlyHovered.promptFieldInput()
+      currentlyHovered.assignFieldValueToObject()
       self.printMenu()
     elif isinstance(currentlyHovered, MenuEntry):
       for entry in self.entries:
@@ -84,13 +88,17 @@ class MenuForm:
 
 
 class MenuEntry:
-  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, inputvalueVisible = False):
+  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, inputvalueVisible = False, expectedType = "str"):
       self.fieldname = fieldname
       self.displayname = displayname
       self.inputvalue = inputvalue
       self.shortcut = shortcut
       self.state = state
       self.inputvalueVisible = inputvalueVisible
+      self.expectedType = expectedType
+      
+      if self.expectedType not in allowedFieldTypes:
+        print(f"{self.expectedType} is not in the list of allowed types.")
   
   def __iter__(self):
     yield 'fieldname', self.fieldname
@@ -112,24 +120,41 @@ class MenuEntry:
       
     return output
     
-class MenuEntryWritableField(MenuEntry):
-  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, inputvalueVisible = False):
-    super().__init__(fieldname, displayname, inputvalue, shortcut, state, inputvalueVisible)
-  
   def promptFieldInput(self):
-    userInput = input(f"Enter input for\n{self.displayname}: ")
+    userInput = Prompt.ask(f"Enter input for\n{self.displayname}")
     self.inputvalue = userInput
+    self.typecastInputToExpected()
+    
+  def checkFieldForExpectedType(self):
+    if isinstance(self.inputvalue, self.expectedType):
+      return True
+    else:
+      return False
+    
+  def typecastInputToExpected(self):
+    match self.expectedType:
+      case "str":
+        self.inputvalue = str(self.inputvalue)
+      case "int":
+        self.inputvalue == int(self.inputvalue)
+      case "float":
+        self.inputvalue == float(self.inputvalue)
+      case "bool":
+        self.inputvalue == bool(self.inputvalue)
+    
+class MenuEntryWritableField(MenuEntry):
+  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, inputvalueVisible = False, expectedType = "str"):
+    super().__init__(fieldname, displayname, inputvalue, shortcut, state, inputvalueVisible, expectedType)
     
 class MenuEntryWriteObjectAttr(MenuEntry):
-  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, targetObject = None, inputvalueVisible = False):
-    super().__init__(fieldname, displayname, inputvalue, shortcut, state, inputvalueVisible)
+  def __init__(self, fieldname, displayname, inputvalue = None, shortcut = None, state = None, targetObject = None, inputvalueVisible = False, expectedType = "str"):
+    super().__init__(fieldname, displayname, inputvalue, shortcut, state, inputvalueVisible, expectedType)
     self.targetObject = targetObject
     self.inputvalue = getattr(self.targetObject, self.fieldname)
     
-  def promptFieldInput(self):
-    userInput = input(f"Enter input for\n{self.displayname}: ")
-    self.inputvalue = userInput
+  def assignFieldValueToObject(self):
     setattr(self.targetObject, self.fieldname, self.inputvalue)
+    
     
 @dataclass
 class ExampleObject:
